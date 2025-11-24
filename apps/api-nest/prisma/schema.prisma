@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  Patient
+  Doctor
+  Nurse
+  Admin
+}
+
+enum UserStatus {
+  pending
+  active
+  rejected
+}
+
+enum AppointmentStatus {
+  requested
+  confirmed
+  canceled
+  completed
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  passwordHash      String
+  role              UserRole
+  status            UserStatus @default(pending)
+  tenantId          String
+  profile           Json
+  consentVersion    String
+  consentAcceptedAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  staff             Staff?
+  appointments      Appointment[] @relation("PatientAppointments")
+}
+
+model Hospital {
+  id       String @id @default(cuid())
+  tenantId String
+  name     String
+  country  String
+  address  String?
+  contacts Json?
+  active   Boolean @default(true)
+  services Service[]
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  hospitalId  String?
+  hospital    Hospital? @relation(fields: [hospitalId], references: [id])
+  units       Unit[]
+}
+
+model Unit {
+  id        String  @id @default(cuid())
+  name      String
+  schedule  Json?
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+}
+
+model Staff {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  specialties String[]
+  services    Service[] @relation("StaffServices")
+  user       User     @relation(fields: [userId], references: [id])
+  availability StaffAvailability[]
+}
+
+model StaffAvailability {
+  id        String  @id @default(cuid())
+  staffId   String
+  dayOfWeek Int
+  start     DateTime
+  end       DateTime
+  staff     Staff @relation(fields: [staffId], references: [id])
+}
+
+model Appointment {
+  id            String   @id @default(cuid())
+  tenantId      String
+  dateTimeStart DateTime
+  dateTimeEnd   DateTime
+  status        AppointmentStatus @default(requested)
+  patientId     String
+  staffId       String
+  serviceId     String
+  location      Json?
+  notes         String?
+  patient       User @relation("PatientAppointments", fields: [patientId], references: [id])
+  staff         Staff @relation(fields: [staffId], references: [id])
+  service       Service @relation(fields: [serviceId], references: [id])
+  consultation  Consultation?
+}
+
+model Consultation {
+  id            String   @id @default(cuid())
+  appointmentId String   @unique
+  summary       String
+  vitals        Json?
+  diagnosis     String?
+  prescriptions Json?
+  documents     Json?
+  createdBy     String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+}
+
+model MedicalRecord {
+  id               String @id @default(cuid())
+  patientId        String @unique
+  encryptedPayload String
+  iv               String
+  tag              String
+  allergies        Json?
+  conditions       Json?
+  medications      Json?
+  patient          User @relation(fields: [patientId], references: [id])
+}
+
+model AuditLog {
+  id       String @id @default(cuid())
+  actorId  String
+  action   String
+  entity   String
+  entityId String
+  tenantId String
+  ip       String?
+  timestamp DateTime @default(now())
+}
+
+model Notification {
+  id       String @id @default(cuid())
+  userId   String
+  type     String
+  payload  Json
+  channel  String
+  sentAt   DateTime?
+}
